@@ -26,6 +26,7 @@
      org
      python
      ranger
+     (semantic :disabled-for emacs-lisp)
      syntax-checking
      shell
      shell-scripts
