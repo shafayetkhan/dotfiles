@@ -18,6 +18,7 @@
       auto-completion-enable-help-tooltip        'manual
       auto-completion-enable-snippets-in-popup   t)
      better-defaults
+     (c-c++ :variables c-c++-enable-clang-support t)
      emacs-lisp
      git
      html
