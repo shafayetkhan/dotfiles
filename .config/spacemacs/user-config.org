@@ -120,6 +120,10 @@ config before emacs may be used.
 
 The function to tangle and recompile the config, running only if the org file was recently
 modified.
+
+NOTE: When setting up dotfiles for the first time, evalue the functions and interactively evaluate
+the expression with ~M-:~ =(std::config-tangle-and-recompile)=
+
 #+BEGIN_SRC emacs-lisp
   (autoload #'org-babel-tangle-file "ob-tangle")
 
