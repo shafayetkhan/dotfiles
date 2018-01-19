@@ -127,7 +127,7 @@
    dotspacemacs-persistent-server nil
    dotspacemacs-search-tools '("ag" "grep")
    dotspacemacs-default-package-repository nil
-   dotspacemacs-whitespace-cleanup 'all
+   dotspacemacs-whitespace-cleanup nil
    ))
 
 (defun dotspacemacs/user-init ()
