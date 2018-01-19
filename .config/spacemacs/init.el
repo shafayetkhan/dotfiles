@@ -22,6 +22,7 @@
      emacs-lisp
      git
      html
+     javascript
      markdown
      org
      python
