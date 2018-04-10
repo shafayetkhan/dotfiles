@@ -31,6 +31,7 @@
      syntax-checking
      shell
      shell-scripts
+     swift
      themes-megapack
      (version-control
       :variables
@@ -38,7 +39,8 @@
       version-control-global-margin t)
      vimscript
      yaml
-     )
+     ;; Personal config layers
+     sk-c)
    dotspacemacs-additional-packages
    '(company-flx
      dash
@@ -56,7 +58,6 @@
      evil-goggles
      rainbow-mode
      shackle
-     swift
      swiper
      vimish-fold
      writeroom-mode)
