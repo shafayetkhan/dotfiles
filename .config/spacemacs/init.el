@@ -31,6 +31,7 @@
      syntax-checking
      shell
      shell-scripts
+     themes-megapack
      (version-control
       :variables
       version-control-diff-tool     'git-gutter
@@ -49,12 +50,13 @@
      helm-systemd
      helpful
      (i3wm-config-mode   :location (recipe :fetcher github
-                                           :repo "Alexander-Miller/i3wm-config-mode"))
+                                           :repo "alexander-miller/i3wm-config-mode"))
      (morning-star-theme :location (recipe :fetcher github
-                                           :repo "Alexander-Miller/morning-star-theme"))
+                                           :repo "alexander-miller/morning-star-theme"))
      evil-goggles
      rainbow-mode
      shackle
+     swift
      swiper
      vimish-fold
      writeroom-mode)
@@ -80,11 +82,11 @@
                          spacemacs-dark
                          spacemacs-light)
    dotspacemacs-colorize-cursor-according-to-state t
-   dotspacemacs-default-font '("Fantasque Sans Mono"
-                               :size 24
+   dotspacemacs-default-font '("fantasque sans mono"
+                               :size 20
                                :weight normal
                                :width normal
-                               :powerline-scale 1.4)
+                               :powerline-scale 1.2)
    dotspacemacs-leader-key "SPC"
    dotspacemacs-emacs-command-key "SPC"
    dotspacemacs-ex-command-key ":"
