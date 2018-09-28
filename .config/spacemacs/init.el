@@ -26,12 +26,10 @@
      markdown
      org
      python
-     ranger
      (semantic :disabled-for emacs-lisp)
      syntax-checking
      shell
      shell-scripts
-     swift
      themes-megapack
      (version-control
       :variables
@@ -42,20 +40,12 @@
      ;; Personal config layers
      sk-c)
    dotspacemacs-additional-packages
-   '(company-flx
-     dash
-     ;; dired+
-     el-mock
-     flx
-     flycheck-package
-     haskell-mode
-     helm-systemd
+   '(flycheck-package
      helpful
      (i3wm-config-mode   :location (recipe :fetcher github
                                            :repo "alexander-miller/i3wm-config-mode"))
      (morning-star-theme :location (recipe :fetcher github
                                            :repo "alexander-miller/morning-star-theme"))
-     evil-goggles
      rainbow-mode
      shackle
      swiper
@@ -83,8 +73,8 @@
                          spacemacs-dark
                          spacemacs-light)
    dotspacemacs-colorize-cursor-according-to-state t
-   dotspacemacs-default-font '("fantasque sans mono"
-                               :size 20
+   dotspacemacs-default-font '("Menlo for Powerline"
+                               :size 16
                                :weight normal
                                :width normal
                                :powerline-scale 1.2)
@@ -138,7 +128,8 @@
   (setq custom-file (concat (getenv "SPACEMACSDIR") "/custom-file.el")))
 
 (defun dotspacemacs/user-config ()
-  (load-file (concat (getenv "SPACEMACSDIR") "/user-config.elc")))
+  (load-file (concat (getenv "SPACEMACSDIR") "/user-config.elc"))
+)
 
 (defun dotspacemacs/emacs-custom-settings ()
   "Emacs custom settings.

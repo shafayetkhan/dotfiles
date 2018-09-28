@@ -112,6 +112,17 @@ As shown in the spacemacs FAQ
   ;; (define-key evil-normal-state-map (kbd "züf") #'std::fold-defun)
 #+END_SRC
 
+** after!
+
+#+BEGIN_SRC emacs-lisp
+  (defmacro after! (feature &rest body)
+    "Run BODY after loading FEATURE.
+  Same as `with-eval-after-load', but there is no need to quote FEATURE."
+    (declare (debug (sexp body)) (indent 1))
+    `(with-eval-after-load ,(if (stringp feature) feature `(quote ,feature))
+       ,@body))
+#+END_SRC
+
 * Config tangle & compilation
 
 To save on startup time the config file is only loaded on boot. Tangling and compilation is
@@ -121,7 +132,7 @@ config before emacs may be used.
 The function to tangle and recompile the config, running only if the org file was recently
 modified.
 
-NOTE: When setting up dotfiles for the first time, evalue the functions and interactively evaluate
+NOTE: When setting up dotfiles for the first time, evaluate the functions and interactively evaluate
 the expression with ~M-:~ =(std::config-tangle-and-recompile)=
 
 #+BEGIN_SRC emacs-lisp
@@ -140,6 +151,7 @@ the expression with ~M-:~ =(std::config-tangle-and-recompile)=
                 (time-less-p (->> el-file  (file-attributes) (nth 5))
                              (->> org-file (file-attributes) (nth 5))))
         (std::do-recompile org-file el-file))))
+        (std::config-tangle-and-recompile)
 #+END_SRC
 
 Advice to insert reload before spacemacs' layer syncing.
@@ -278,54 +290,6 @@ The tooltip will look vastly better if we set a minimum width and properly align
      company-tooltip-margin                     2))
 #+END_SRC
 
-*** Backend Priority
-
-The completions provided by combined backends should be sorted, so as to avoid
-interspersing semantic completion candidates with dumb code-dabbrevs
-#+BEGIN_SRC emacs-lisp
-  (with-eval-after-load 'company
-    (defconst std::company::backend-priorities
-      '((company-fish-shell   . 10)
-        (company-shell        . 11)
-        (company-shell-env    . 12)
-        (company-anaconda     . 10)
-        (company-capf         . 50)
-        (company-yasnippet    . 60)
-        (company-keywords     . 70)
-        (company-files        . 80)
-        (company-dabbrev-code . 90)
-        (company-dabbrev      . 100))
-      "Alist of backends' priorities.  Smaller number means higher priority.")
-
-    (defun std::company::priority-of-backend (backend)
-      "Will retrieve priority of BACKEND.
-  Defauts to 999 if BACKEND is nul or has no priority defined."
-      (let ((pr (cdr (assoc backend std::company::backend-priorities))))
-        (if (null pr) 999 pr)))
-
-    (defun std::company::priority-compare (c1 c2)
-      "Compares the priorities of C1 & C2."
-      (let* ((b1   (get-text-property 0 'company-backend c1))
-             (b2   (get-text-property 0 'company-backend c2))
-             (p1   (std::company::priority-of-backend b1))
-             (p2   (std::company::priority-of-backend b2))
-             (diff (- p1 p2)))
-        (< diff 0)))
-
-    (defun std::company::sort-by-backend-priority (candidates)
-      "Will sort completion CANDIDATES according to their priorities."
-      (sort (delete-dups candidates) #'std::company::priority-compare)))
-#+END_SRC
-
-The priority sorting is only used in major modes which use combined backends
-#+BEGIN_SRC emacs-lisp
-  (defun std::company::use-completions-priority-sorting ()
-    (setq-local company-transformers '(company-flx-transformer company-sort-by-occurrence std::company::sort-by-backend-priority)))
-
-  (--each '(rust-mode-hook fish-mode-hook python-mode-hook)
-    (add-hook it #'std::company::use-completions-priority-sorting))
-#+END_SRC
-
 *** Quickhelp
 
 Quickhelp makes company's modemaps unreliable, so we rewrite the underlying keymap while company is active
@@ -365,13 +329,6 @@ Quickhelp makes company's modemaps unreliable, so we rewrite the underlying keym
     (define-key company-active-map (kbd "C-l") #'company-quickhelp-manual-begin))
 #+END_SRC
 
-*** Company Flx
-
-#+BEGIN_SRC emacs-lisp
-  (with-eval-after-load 'company
-    (company-flx-mode t)
-    (setq company-flx-limit 400))
-#+END_SRC
 
 *** Bindings
 
@@ -401,16 +358,17 @@ I want my buffers' display behaviour to be handled by shackle. All of them. No e
       `(file+headline
         ,(concat org-directory "capture.org")
         ,(if (s-equals? (system-name) "archie")
-             "Ideas"
-           "Inbox"))))
+             "Personal"
+           "Work"))))
 #+END_SRC
 
 *** Settings
 **** Prerequisites
 
 #+BEGIN_SRC emacs-lisp
-  (setq-default org-directory          "~/Dropbox/org/"
-                org-default-notes-file (concat org-directory "capture.org"))
+(after! org
+(setq-default org-directory          "~/org/"
+org-default-notes-file (concat org-directory "capture.org")))
 #+END_SRC
 
 **** Additional modules
@@ -441,7 +399,7 @@ I want my buffers' display behaviour to be handled by shackle. All of them. No e
 #+END_SRC
 
 **** Agenda
-
+     
 #+BEGIN_SRC emacs-lisp
   (with-eval-after-load 'org-agenda
 
@@ -484,13 +442,20 @@ Also use ascii bullets for simple lists
 #+END_SRC
 
 **** Capture
-
 #+BEGIN_SRC emacs-lisp
-  (with-eval-after-load 'org
-    (setq org-capture-templates
-          `(("t" "Idea/Todo" entry
-             ,(std::org::capture-std-target)
-             "** [TODO] %?\n %U"))))
+  (after! org
+    (setq
+     org-capture-templates
+     `(("t" "todo")
+     ("tw" "work" entry (file+headline "~/org/gtd.org" "Inbox")
+     "* JIRA %?\n   SCHEDULED: %(org-insert-time-stamp (org-read-date nil t \"+1d\"))\n%U\n%a\n" :clock-resume t :prepend t)
+     ("tt" "task" entry (file+headline "~/org/gtd.org" "Inbox")
+     "* NEXT %?\n   SCHEDULED: %(org-insert-time-stamp (org-read-date nil t \"+1d\"))\n%U\n%a\n" :clock-resume t :prepend t)
+     ("n" "note" entry (file+headline "" "wiki") ; "" => org-default-notes-file
+     "* %? :@note:\n%U\n%a\n" :clock-resume t :prepend t)
+     ("m" "meeting" entry (file+headline "~/org/gtd.org" "Meetings")
+     "* MEETING with %? :@meeting:\n%U" :clock-in t :clock-resume t :prepend t)
+     )))
 #+END_SRC
 
 **** Other/Sort later
@@ -502,7 +467,7 @@ Also use ascii bullets for simple lists
      org-tags-column                85
      org-src-window-setup           'other-window
      org-log-done                   'time
-     org-ellipsis                   "  "
+     ;; org-ellipsis                   "  "
      org-startup-align-all-tables   t
      org-startup-indented           t
      org-log-into-drawer            t
@@ -754,44 +719,6 @@ A small bit of custom font locking for '==>'
     (define-key org-src-mode-map (kbd "C-c C-c") #'org-edit-src-exit))
 #+END_SRC
 
-** Shell Scripts
-*** Functions
-
-~std::fish-mode-hook~
-#+BEGIN_SRC emacs-lisp
-  (defun std::fish::mode-hook ()
-    (setq imenu-generic-expression fish-mode-imenu-expr))
-  (add-hook 'fish-mode-hook #'std::fish::mode-hook)
-#+END_SRC
-
-*** Settings
-
-#+BEGIN_SRC emacs-lisp
-  (with-eval-after-load 'company
-    (setq
-     company-shell-delete-duplicates nil
-     company-shell-modes             nil
-     company-fish-shell-modes        nil
-     company-shell-use-help-arg      t))
-
-  (setq company-backends-fish-mode
-        '((company-dabbrev-code company-files company-shell company-shell-env company-fish-shell :with company-yasnippet)))
-
-  (defconst fish-mode-imenu-expr
-    (list
-     (list
-      "Function"
-      (rx (group-n 1 (seq bol "function" (1+ space)))
-          (group-n 2 (1+ (or alnum (syntax symbol)))) symbol-end)
-      2)
-
-     (list
-      "Variables"
-      (rx bol "set" (1+ space) (0+ "-" (1+ alpha) (1+ space))
-          (group-n 1 symbol-start (1+ (or word "_"))))
-      1)))
-#+END_SRC
-
 ** Helm
 *** Functions
 
@@ -841,49 +768,6 @@ A small bit of custom font locking for '==>'
     (define-key helm-map (kbd "M-k") #'helm-previous-source))
 #+END_SRC
 
-** Rust
-# *** Functions
-
-# ~std::rust::build-rusty-tags~
-# #+BEGIN_SRC emacs-lisp
-#   (with-eval-after-load 'rust-mode
-#     (defun std::rust::build-rusty-tags ()
-#       (interactive)
-#       (make-thread
-#        #'(lambda ()
-#            (let ((default-directory (projectile-project-root)))
-#              (call-process-shell-command "rusty-tags emacs")
-#              (call-process-shell-command "mv rusty-tags.emacs TAGS")
-#              (message "Rusty tags rebuilt."))))))
-# #+END_SRC
-
-# *** Keybinds
-
-# #+BEGIN_SRC emacs-lisp
-#   (with-eval-after-load "racer"
-#     (evil-define-key 'normal racer-mode-map      (kbd "M-.") #'racer-find-definition)
-#     (evil-define-key 'insert racer-mode-map      (kbd "M-.") #'racer-find-definition)
-#     (evil-define-key 'normal racer-help-mode-map (kbd "q")   #'kill-buffer-and-window)
-
-#     (spacemacs/set-leader-keys-for-major-mode 'rust-mode
-#       "f"   #'rust-format-buffer
-#       "a"   #'rust-beginning-of-defun
-#       "e"   #'rust-end-of-defun
-#       "d"   #'racer-describe
-#       "C-t" #'std::rust::build-rusty-tags))
-# #+END_SRC
-
-# *** Settings
-
-# Add *company-dabbrev-code* to front row of completion backends.
-# #+BEGIN_SRC emacs-lisp
-#   (with-eval-after-load "rust-mode"
-#     (setq company-backends-rust-mode
-#           '((company-capf :with company-dabbrev-code company-yasnippet)
-#             (company-dabbrev-code company-gtags company-etags company-keywords :with company-yasnippet)
-#             (company-files :with company-yasnippet)
-#             (company-dabbrev :with company-yasnippet))))
-# #+END_SRC
 
 ** Projectile
 *** Functions
@@ -992,56 +876,6 @@ A small bit of custom font locking for '==>'
     (apply #'std::def-key-for-maps (kbd ",3")  #'magit-section-show-level-3-all  std::magit-key-maps)
     (apply #'std::def-key-for-maps (kbd ",4")  #'magit-section-show-level-4-all  std::magit-key-maps))
 #+END_SRC
-
-** Elm
-*** Functions
-
-#+BEGIN_SRC emacs-lisp
-  (defun std::format-and-save-elm-buffer ()
-    "Format an elm buffer and then save it."
-    (interactive)
-    (elm-mode-format-buffer)
-    (save-buffer))
-#+END_SRC
-
-*** Settings
-
-#+BEGIN_SRC emacs-lisp
-  (defun std::elm-mode-hook ()
-    (setq-local company-backends
-                '((company-elm company-dabbrev-code company-files :with company-yasnippet))))
-
-  (add-hook 'elm-mode-hook #'std::elm-mode-hook t)
-#+END_SRC
-
-*** Keybinds
-
-#+BEGIN_SRC emacs-lisp
-  (with-eval-after-load 'elm-mode
-    (spacemacs/set-leader-keys-for-major-mode 'elm-mode
-      "R"   nil
-      "h"   nil
-      "="   nil
-      "em"  #'elm-preview-main
-      "eb"  #'elm-preview-buffer
-      "d"   #'elm-oracle-doc-at-point
-      "t"   #'elm-oracle-type-at-point
-      "=="  #'elm-mode-format-buffer
-      "C-t" #'elm-mode-generate-tags)
-
-    (which-key-add-major-mode-key-based-replacements 'elm-mode
-      ",e" "preview")
-
-    (spacemacs/set-leader-keys
-      "fs" #'std::format-and-save-elm-buffer)
-
-    (define-key elm-package-mode-map (kbd "J")       #'std::quick-forward)
-    (define-key elm-package-mode-map (kbd "K")       #'std::quick-backward)
-    (define-key elm-package-mode-map (kbd "q")       #'kill-buffer-and-window)
-    (define-key elm-mode-map         (kbd "C-x C-s") #'std::format-and-save-elm-buffer)
-    (define-key elm-mode-map         (kbd "M-.")     #'elm-mode-goto-tag-at-point))
-#+END_SRC
-
 ** Git
 *** Settings
 
@@ -1050,57 +884,6 @@ A small bit of custom font locking for '==>'
     (setq magit-repository-directories  '(("~/code/git/" . 1))
           magit-display-buffer-function 'magit-display-buffer-fullframe-status-v1))
 #+END_SRC
-
-** Ranger
-*** Functions
-
-~std::deer-new-frame~
-#+BEGIN_SRC emacs-lisp
-  (defun std::deer-new-frame ()
-    (interactive)
-    (let ((frame (make-frame-command)))
-      (select-frame frame)
-      (deer)
-      (delete-other-windows)))
-#+END_SRC
-
-~std::deer-kill-frame~
-#+BEGIN_SRC emacs-lisp
-  (with-eval-after-load 'ranger
-    (defun std::deer-delete-frame ()
-      (interactive)
-      (ranger-close)
-      (when (> (cl-list-length (frame-list)) 1)
-        (delete-frame))))
-#+END_SRC
-
-*** Settings
-
-#+BEGIN_SRC emacs-lisp
-  ;; (with-eval-after-load 'ranger
-  ;;   (setq ranger-cleanup-eagerly    t
-  ;;         ranger-cleanup-on-disable t
-  ;;         ranger-deer-show-details  t
-  ;;         ranger-dont-show-binary   t
-  ;;         ranger-hide-cursor        t
-  ;;         ranger-listing-dir-first  t
-  ;;         ranger-modify-header      t
-  ;;         ranger-map-style          'dired
-  ;;         ranger-override-dired     t
-  ;;         ranger-tabs-style         'normal
-  ;;         ranger-show-hidden        t))
-#+END_SRC
-
-*** Keybinds
-
-#+BEGIN_SRC emacs-lisp
-  (spacemacs/set-leader-keys
-    "ad" #'std::deer-new-frame)
-
-  (with-eval-after-load 'ranger
-    (evil-define-key 'motion ranger-mode-map (kbd "q") #'std::deer-delete-frame))
-#+END_SRC
-
 * Single Package Configurations
 ** Swiper
 *** Functions
@@ -1130,13 +913,6 @@ A small bit of custom font locking for '==>'
    evil-normal-state-map evil-insert-state-map evil-visual-state-map evil-motion-state-map)
 #+END_SRC
 
-** dired+
-
-#+BEGIN_SRC emacs-lisp
-  ;; (with-eval-after-load 'dired
-  ;;   (require 'dired+))
-#+END_SRC
-
 ** Eyebrowse
 
 Switch desktops via SPC + num
@@ -1160,7 +936,6 @@ Replace popwin
         '(("*helm-ag*"              :select t   :align right :size 0.5)
           ("*helm semantic/imenu*"  :select t   :align right :size 0.4)
           ("*helm org inbuffer*"    :select t   :align right :size 0.4)
-          (flycheck-error-list-mode :select nil :align below :size 0.25)
           (ert-results-mode         :select t   :align below :size 0.5)
           (calendar-mode            :select t   :align below :size 0.25)
           (racer-help-mode          :select t   :align right :size 0.5)
@@ -1190,21 +965,6 @@ Replace popwin
   (with-eval-after-load 'yasnippet
     (autoload #'f-join "f.el")
     (setq-default yas-snippet-dirs (list (f-join (getenv "SPACEMACSDIR") "snippets"))))
-#+END_SRC
-
-*** Enable Smartparens
-
-Smartparens is disabled while yasnippet is expanding and editing a snippet. Whatever this was a workaround for
-I don't seem affected, and I'd rather keep my electric pairs inside my snippets.
-#+BEGIN_SRC emacs-lisp
-  (unless (bound-and-true-p std::yasnippet::smartparens-restored)
-    (if (member #'spacemacs//smartparens-disable-before-expand-snippet yas-before-expand-snippet-hook)
-        (remove-hook 'yas-before-expand-snippet-hook #'spacemacs//smartparens-disable-before-expand-snippet)
-      (error "Smartparens no longer disabled before yasnippet starts."))
-    (if (member #'spacemacs//smartparens-restore-after-exit-snippet yas-after-exit-snippet-hook)
-        (remove-hook 'yas-after-exit-snippet-hook #'spacemacs//smartparens-restore-after-exit-snippet)
-      (error "Smartparens no longer restored after yasnippet ends.")))
-  (defvar std::yasnippet::smartparens-restored t)
 #+END_SRC
 
 ** i3wm-config-mode
@@ -1256,40 +1016,6 @@ A fallback in case evil's own folding is not sufficient
    persp-autokill-buffer-on-remove                  nil)
 #+END_SRC
 
-*** Layouts
-
-#+BEGIN_SRC emacs-lisp
-  (spacemacs|define-custom-layout "@OrgDir"
-    :binding "a"
-    :body
-    (-if-let (org-files (f-files org-directory))
-        (find-file-existing (first org-files))
-      (user-error "No org files ")))
-#+END_SRC
-
-** Evil Goggles
-*** Settings
-
-#+BEGIN_SRC emacs-lisp
-  (evil-goggles-mode t)
-  (setq evil-goggles-duration                     0.15
-        evil-goggles-pulse                        nil
-        evil-goggles-enable-delete                t
-        evil-goggles-enable-indent                t
-        evil-goggles-enable-yank                  t
-        evil-goggles-enable-join                  t
-        evil-goggles-enable-fill-and-move         t
-        evil-goggles-enable-paste                 t
-        evil-goggles-enable-shift                 t
-        evil-goggles-enable-surround              t
-        evil-goggles-enable-commentary            t
-        evil-goggles-enable-nerd-commenter        t
-        evil-goggles-enable-replace-with-register t
-        evil-goggles-enable-set-marker            t
-        evil-goggles-enable-undo                  t
-        evil-goggles-enable-redo                  t)
-#+END_SRC
-
 ** Helpful
 *** Keybinds
 
@@ -1310,58 +1036,6 @@ Turn off unwanted segments
   (spacemacs/toggle-mode-line-minor-modes-off)
   (spaceline-toggle-purpose-off)
 #+END_SRC
-
-Don't use Spacemacs' evil state highlighter
-#+BEGIN_SRC emacs-lisp
-  (setq spaceline-highlight-face-func 'spaceline-highlight-face-evil-state)
-#+END_SRC
-
-* Fonts
-** Functions
-
-~std::downscale~
-#+BEGIN_SRC emacs-lisp
-  (cl-defun std::downscale (font &key char start end)
-    (set-fontset-font "fontset-default" `(,(or start char) . ,(or end char))
-                      (font-spec :size 12 :name font)))
-#+END_SRC
-
-** Scaled Characters
-
-Some unicode characters are displayed taller than the default text. Scrolling through such
-characters will sometimes cause the cursor to be jumpy. To avoid that these unicode characters
-need to be scaled down.
-
-First the entirety of Font Awesome
-#+BEGIN_SRC emacs-lisp
-  (std::downscale "Font Awesome" :start #xf000 :end #xf2e0)
-#+END_SRC
-
-Then single characters, like those used for prettify-symbols
-#+BEGIN_SRC emacs-lisp
-  (std::downscale "Symbola" :char ?\⇛)
-  (std::downscale "Symbola" :char ?\⭢)
-  (std::downscale "Symbola" :char ?\⩵)
-  (std::downscale "Symbola" :char ?\⮕)
-  (std::downscale "Symbola" :char ?\⬅)
-  (std::downscale "Symbola" :char ?\◉)
-  (std::downscale "Symbola" :char ?\•)
-  (std::downscale "Symbola" :char ?\⏵)
-  (std::downscale "Symbola" :char ?\⏸)
-  (std::downscale "Symbola" :char ?\⏹)
-  (std::downscale "Symbola" :char ?\⏮)
-  (std::downscale "Symbola" :char ?\⏭)
-  (std::downscale "Symbola" :char ?\⏪)
-  (std::downscale "Symbola" :char ?\⏩)
-  (std::downscale "Symbola" :char ?\🔀)
-  (std::downscale "Symbola" :char ?\🔁)
-  (std::downscale "Symbola" :char ?\🔂)
-  (std::downscale "Symbola" :char ?\❯)
-  (std::downscale "Symbola" :char ?\✸)
-  (std::downscale "Symbola" :char ?\✿)
-  (std::downscale "Cantarell" :char ?\•)
-#+END_SRC
-
 * Misc. Settings
 ** General Key Binds
 
@@ -1426,7 +1100,6 @@ Find definition
 Quitting with *q*
 #+BEGIN_SRC emacs-lisp
   (evil-define-key 'normal messages-buffer-mode-map (kbd "q") #'quit-window)
-  (define-key flycheck-error-list-mode-map (kbd "q") #'kill-buffer-and-window)
   (with-eval-after-load 'Man-mode
     (define-key Man-mode-map (kbd "q") #'kill-buffer-and-window))
 #+END_SRC
@@ -1477,23 +1150,6 @@ Off
   (add-hook 'conf-mode-hook       #'rainbow-mode)
   (add-hook 'help-mode-hook       #'rainbow-mode)
   (add-hook 'org-mode-hook        #'smartparens-mode)
-#+END_SRC
-
-*** Prettify Symbols
-
-#+BEGIN_SRC emacs-lisp
-  (setq-default
-   prettify-symbols-alist
-   `(
-      ("lambda" . "λ")
-     ;; ("!="     . "≠")
-     ;; ("=="     . "⩵")
-     ;; ("<="     . "⇚")
-     ;; ("=>"     . "⇛")
-     ;; ("<-"     . "⬅")
-     ;; ("->"     . "⮕")
-    ))
-  (add-hook 'prog-mode-hook #'prettify-symbols-mode)
 #+END_SRC
 
 ** Single Settings
